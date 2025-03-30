@@ -61,7 +61,7 @@ class HedgeEngine:
             isFlag = True
         if paradex_sell > 0:
             logging.info("paradex sell存在未平仓，等待平仓中.....")
-            self.paradex_clients.close_order(self.accounts_buy)
+            self.paradex_clients.close_order(self.accounts_sell)
             isFlag = True
         return isFlag
 
