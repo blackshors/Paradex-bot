@@ -2,7 +2,7 @@ import os
 import httpx
 import ssl
 from paradex_py.api.http_client import HttpClient as BaseHttpClient  # 导入基础HttpClient
-import httpx
+
 class CustomHttpClient(BaseHttpClient):
     def __init__(self, verify_ssl=True, jwt_token=None):
         super().__init__()
