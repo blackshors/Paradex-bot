@@ -2,12 +2,8 @@ import os
 import time
 import random
 import logging
-from threading import Timer
 from dotenv import load_dotenv
 from account import ACCOUNTS  # 导入账户信息
-from paradex_py import Paradex  # 使用正确的包名
-from paradex_py.api.http_client import HttpClient as BaseHttpClient  # 导入基础HttpClient
-from util.utils import CustomHttpClient
 from core.api_clients.paradex import ParadexClient
 # 加载 .env 文件中的配置项
 load_dotenv()
