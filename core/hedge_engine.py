@@ -46,17 +46,25 @@ class HedgeEngine:
             return False
         return True
 
-    def check_close(self):
-        paradex_buy = self.paradex_clients.count_unorder(self.accounts_buy)
-        paradex_sell = self.paradex_clients.count_unorder(self.accounts_sell)
+    def check_close(self,paradex_instances,a_long,a_short,crypto):
+        un_close_by = paradex_instances[a_long].api_client.fetch_orders({"market":crypto})['results']
+        un_close_sell = paradex_instances[a_short].api_client.fetch_orders({"market":crypto})['results']
         isFlag = False
-        if paradex_buy > 0:
-            logging.info("paradex buy存在未平仓，等待平仓中.....")
-            self.paradex_clients.close_order(self.accounts_buy)
+        if len(un_close_by)>0:
+            logging.info(f"账户：{a_long}存在未平仓,剩余大小：{un_close_by[0]['size']}等待平仓中.....")
+            order_book = paradex_instances[a_long].api_client.fetch_orderbook(crypto)
+            close_bid = Decimal(order_book["bids"][0][0])
+            size = Decimal(un_close_by[0]['size'])
+            close = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=size,limit_price=close_bid))
+            logging.info(f"账户 {a_long} 平多仓, {close}")
             isFlag = True
-        if paradex_sell > 0:
-            logging.info("paradex sell存在未平仓，等待平仓中.....")
-            self.paradex_clients.close_order(self.accounts_sell)
+        if len(un_close_sell)>0:
+            logging.info(f"账户：{a_short}存在未平仓,剩余大小：{un_close_sell[0]['size']}等待平仓中.....")
+            order_book = paradex_instances[a_short].api_client.fetch_orderbook(crypto)
+            close_ask = Decimal(order_book["asks"][0][0])
+            size = Decimal(un_close_sell[0]['size'])
+            close = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=size,limit_price=close_ask))
+            logging.info(f"账户 {a_short} 平空仓, {close}")
             isFlag = True
         return isFlag
 
@@ -103,13 +111,16 @@ class HedgeEngine:
             crypto = random.choice(self.TRADING_PAIRS)
             a_long = accounts[0]
             a_short = accounts[1]
+            # 检查是否还存在有未关闭的仓位
+            while self.check_close(paradex_instances,a_long,a_short,crypto):
+                logging.info("===================仓位未完全关闭，等待处理===================")
+                time.sleep(3)
             order_book = paradex_instances[a_long].api_client.fetch_orderbook(crypto)
             best_ask = Decimal(order_book["asks"][0][0])
             best_bid = Decimal(order_book["bids"][0][0])
             q_long = (Decimal(self.AMOUNT) / best_ask).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
             q_short = (Decimal(self.AMOUNT) / best_bid).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
             #构建Order实体
-
             buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_long,limit_price=best_ask))
             sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_short,limit_price=best_bid))
             logging.info(f"账户 {a_long} 开多仓, 账户 {a_short} 开空仓, 交易对: {crypto}")
@@ -123,17 +134,21 @@ class HedgeEngine:
             close_bid = Decimal(order_book["bids"][0][0])
 
             #构建Order实体
-            close_buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_long,limit_price=close_ask))
-            close_sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_short,limit_price=close_bid))
+            close_buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_long,limit_price=close_bid))
+            close_sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_short,limit_price=close_ask))
             logging.info(f"账户 {a_long} 平多仓, 账户 {a_short} 平空仓, 交易对: {crypto}")
             logging.info(f"账户 {a_long} 平多仓, {close_buy}")
             logging.info(f"账户 {a_short} 平空仓, {close_sell}")
+            # 检查是否还存在有未关闭的仓位
+            while self.check_close(paradex_instances,a_long,a_short,crypto):
+                logging.info("===================仓位未完全关闭，等待处理===================")
+                time.sleep(3)
             round_wait = random.uniform(self.WAIT_ROUND_MIN, self.WAIT_ROUND_MAX)
             time.sleep(round_wait)
         
         for account in accounts:
             balances = paradex_instances[account].api_client.fetch_balances()
-            usdc_balance = float(balances.margin_cushion)
+            usdc_balance = float(balances.result['0']['size'])
             initial = initial_balances[account]
             loss = initial - usdc_balance
             logging.info(f"账户 {account} 最终 USDC 余额: {usdc_balance}, 损耗: {loss}")
