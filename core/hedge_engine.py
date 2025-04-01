@@ -5,8 +5,8 @@ import logging
 from dotenv import load_dotenv
 from core.api_clients.paradex import ParadexClient
 from account import ACCOUNTS  # 导入账户信息
-
-
+from paradex_py.common.order import Order,OrderSide,OrderType
+from decimal import Decimal, ROUND_DOWN
 # 配置日志，记录交易信息
 logging.basicConfig(
     filename='trade_log.log',
@@ -34,7 +34,6 @@ class HedgeEngine:
         self.WAIT_ROUND_MIN = float(os.getenv("WAIT_ROUND_MIN"))            # 每轮交易最小等待时间（秒）
         self.WAIT_ROUND_MAX = float(os.getenv("WAIT_ROUND_MAX"))            # 每轮交易最大等待时间（秒）
         self.TRADING_PAIRS = os.getenv("TRADING_PAIRS").split(",")          # 交易对列表
-
 
     def paradex_unrealized_pnl(self, pair):
         # 拿到当前浮盈百分比情况
@@ -91,7 +90,6 @@ class HedgeEngine:
                 if((self.AMOUNT * 1.1 / self.LEVERAGE)>usdc_balance):
                     exclude.append(account)
                     accounts.remove(account)
-                    break
                 initial_balances[account] = usdc_balance
                 logging.info(f"账户 {account} 初始 USDC 余额: {usdc_balance}")
             except Exception as e:
@@ -100,43 +98,42 @@ class HedgeEngine:
         # 对冲账号不满足条件，则跳出方法
         if(len(accounts)<2):
             return
-        
         for round_num in range(1, self.ROUNDS + 1):
             logging.info(f"开始第 {round_num} 轮交易")
-            while True:
-                a_long, a_short = random.sample(accounts, 2)
-                if ACCOUNTS[a_long]["L1_ADDRESS"] != ACCOUNTS[a_short]["L1_ADDRESS"]:
-                    break
             crypto = random.choice(self.TRADING_PAIRS)
-            
-            order_book = paradex_instances[a_long].api_client.get_order_book(crypto)
-            best_ask = float(order_book["asks"][0]["price"])
-            best_bid = float(order_book["bids"][0]["price"])
-            
-            q_long = self.AMOUNT / best_ask
-            q_short = self.AMOUNT / best_bid
-            
-            paradex_instances[a_long].api_client.place_order(crypto, "buy", "limit", best_ask, q_long)
-            paradex_instances[a_short].api_client.place_order(crypto, "sell", "limit", best_bid, q_short)
+            a_long = accounts[0]
+            a_short = accounts[1]
+            order_book = paradex_instances[a_long].api_client.fetch_orderbook(crypto)
+            best_ask = Decimal(order_book["asks"][0][0])
+            best_bid = Decimal(order_book["bids"][0][0])
+            q_long = (Decimal(self.AMOUNT) / best_ask).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
+            q_short = (Decimal(self.AMOUNT) / best_bid).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
+            #构建Order实体
+
+            buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_long,limit_price=best_ask))
+            sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_short,limit_price=best_bid))
             logging.info(f"账户 {a_long} 开多仓, 账户 {a_short} 开空仓, 交易对: {crypto}")
-            
+            logging.info(f"账户 {a_long} 创建订单, {buy}")
+            logging.info(f"账户 {a_short} 创建订单, {sell}")
             wait_time = random.uniform(self.WAIT_OPEN_CLOSE_MIN, self.WAIT_OPEN_CLOSE_MAX)
             time.sleep(wait_time)
             
-            order_book = paradex_instances[a_long].api_client.get_order_book(crypto)
-            close_ask = float(order_book["asks"][0]["price"])
-            close_bid = float(order_book["bids"][0]["price"])
-            
-            paradex_instances[a_long].api_client.place_order(crypto, "sell", "limit", close_bid, q_long)
-            paradex_instances[a_short].api_client.place_order(crypto, "buy", "limit", close_ask, q_short)
+            order_book = paradex_instances[a_long].api_client.fetch_orderbook(crypto)
+            close_ask = Decimal(order_book["asks"][0][0])
+            close_bid = Decimal(order_book["bids"][0][0])
+
+            #构建Order实体
+            close_buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_long,limit_price=close_ask))
+            close_sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_short,limit_price=close_bid))
             logging.info(f"账户 {a_long} 平多仓, 账户 {a_short} 平空仓, 交易对: {crypto}")
-            
+            logging.info(f"账户 {a_long} 平多仓, {close_buy}")
+            logging.info(f"账户 {a_short} 平空仓, {close_sell}")
             round_wait = random.uniform(self.WAIT_ROUND_MIN, self.WAIT_ROUND_MAX)
             time.sleep(round_wait)
         
         for account in accounts:
-            balances = paradex_instances[account].api_client.get_balances()
-            usdc_balance = float(balances.get("USDC", {}).get("available", 0))
+            balances = paradex_instances[account].api_client.fetch_balances()
+            usdc_balance = float(balances.margin_cushion)
             initial = initial_balances[account]
             loss = initial - usdc_balance
             logging.info(f"账户 {account} 最终 USDC 余额: {usdc_balance}, 损耗: {loss}")
