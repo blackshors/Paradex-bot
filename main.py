@@ -5,4 +5,4 @@ if __name__ == "__main__":
     exclude = []
     bot = HedgeEngine()
     while(bot.random_account(accounts=accounts,exclude=exclude)):
-        bot.run(accounts)
+        bot.run(accounts,exclude)
