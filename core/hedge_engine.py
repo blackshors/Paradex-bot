@@ -113,25 +113,32 @@ class HedgeEngine:
         return analysis_account_total
 
 
-    def run(self,accounts,exclude,account_total):
+    def run(self,accounts,exclude):
+        logging.info("=======================开始查询每个账户的初始金额=======================")
+        analysis_account_total = self.analysis_account_total()
+        account_total_front = 0
+        for key, value in analysis_account_total.items():
+            logging.info(f"账户{key}余额：{value}USD")
+            account_total_front+=value
+        logging.info(f"合计：{account_total_front}USDC")
         paradexClient = ParadexClient()
         paradex_instances = {account: paradexClient.get_paradex_instance(account) for account in accounts}
         paradexClient.refresh_jwt(paradex_instances)
         
-        initial_balances = {}
-        for account in accounts:
-            try:
-                balances = paradex_instances[account].api_client.fetch_account_summary()
-                usdc_balance = float(balances.margin_cushion)
-                if((self.AMOUNT * 1.1 / self.LEVERAGE)>usdc_balance):
-                    exclude.append(account)
-                    accounts.remove(account)
-                initial_balances[account] = usdc_balance
-                account_total+=usdc_balance
-                logging.info(f"交易账户{account}余额: {usdc_balance}")
-            except Exception as e:
-                logging.error(f"获取账户 {account} 余额失败: {str(e)}")
-                raise
+        # initial_balances = {}
+        # for account in accounts:
+        #     try:
+        #         balances = paradex_instances[account].api_client.fetch_account_summary()
+        #         usdc_balance = float(balances.margin_cushion)
+        #         if((self.AMOUNT * 1.1 / self.LEVERAGE)>usdc_balance):
+        #             exclude.append(account)
+        #             accounts.remove(account)
+        #         initial_balances[account] = usdc_balance
+        #         account_total+=usdc_balance
+        #         logging.info(f"交易账户{account}余额: {usdc_balance}")
+        #     except Exception as e:
+        #         logging.error(f"获取账户 {account} 余额失败: {str(e)}")
+        #         raise
         
         # 对冲账号不满足条件，则跳出方法
         if(len(accounts)<2):
@@ -162,9 +169,9 @@ class HedgeEngine:
             #构建Order实体
             buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_long,limit_price=best_ask))
             logging.info(f"账户 {a_long} 创建订单, {buy}")
-            if(self.is_not_exist_order(paradex_instances[a_long],crypto)):
-                exist = True
-                continue
+            # if(self.is_not_exist_order(paradex_instances[a_long],crypto)):
+            #     exist = True
+            #     continue
             sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_short,limit_price=best_bid))
             logging.info(f"账户 {a_short} 创建订单, {sell}")
             logging.info(f"账户 {a_long} 开多仓, 账户 {a_short} 开空仓, 交易对: {crypto}")
@@ -186,11 +193,11 @@ class HedgeEngine:
         
             logging.info(f"=======================结束{round_num}轮后=======================")
             analysis_account_total = self.analysis_account_total()
-            now_account_total = 0
+            rear_account_total = 0
             for key, value in analysis_account_total.items():
                 logging.info(f"账户{key}余额：{value}USD")
-                now_account_total+=value
-            logging.info(f"高频损耗 ： {account_total-now_account_total} UDSC（前合计-结束合计）")
+                rear_account_total+=value
+            logging.info(f"高频损耗 ： {account_total_front-rear_account_total} UDSC（前合计-结束合计）")
         # for account in accounts:
         #     balances = paradex_instances[account].api_client.fetch_balances()
         #     usdc_balance = float(balances['results'][0]['size'])
