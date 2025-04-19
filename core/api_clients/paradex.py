@@ -64,7 +64,7 @@ class ParadexClient:
                             instance.api_client.http_client.set_jwt_token(jwt_token)
                             logging.warn(f"账户 {account} 初始JWT设置成功")
                         else:
-                            logging.warning(f"账户 {account} 初始JWT获取失败")
+                            logging.warn(f"账户 {account} 初始JWT获取失败")
                         
                         break
                     else:
@@ -78,7 +78,7 @@ class ParadexClient:
                     if attempt == max_retries - 1:
                         raise ValueError(error_msg)
                     wait_time = (attempt + 1) * 5  # 指数退避
-                    logging.warning(f"{wait_time} 秒后重试...")
+                    logging.warn(f"{wait_time} 秒后重试...")
                     time.sleep(wait_time)
                 
             return instance

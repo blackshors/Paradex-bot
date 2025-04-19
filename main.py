@@ -7,10 +7,5 @@ logging.basicConfig(
     format='%(asctime)s - %(message)s'
 )
 if __name__ == "__main__":
-    accounts = []
-    exclude = []
     bot = HedgeEngine()
-    # bot.random_account(accounts=accounts,exclude=exclude)
-    # bot.run(accounts,exclude)
-    while(bot.random_account(accounts=accounts,exclude=exclude)):
-        bot.run(accounts,exclude)
+    bot.run()

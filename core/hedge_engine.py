@@ -113,7 +113,7 @@ class HedgeEngine:
         return analysis_account_total
     
 
-    def run(self,accounts,exclude):
+    def run(self):
         logging.warn("=======================开始查询每个账户的初始金额=======================")
         analysis_account_total = self.analysis_account_total()
         account_total_front = 0
@@ -122,9 +122,6 @@ class HedgeEngine:
             account_total_front+=value
         logging.warn(f"合计：{account_total_front}USDC")
         paradexClient = ParadexClient()
-        paradex_instances = {account: paradexClient.get_paradex_instance(account) for account in accounts}
-        paradexClient.refresh_jwt(paradex_instances)
-        
         # initial_balances = {}
         # for account in accounts:
         #     try:
@@ -139,16 +136,17 @@ class HedgeEngine:
         #     except Exception as e:
         #         logging.error(f"获取账户 {account} 余额失败: {str(e)}")
         #         raise
-        
-        # 对冲账号不满足条件，则跳出方法
-        if(len(accounts)<2):
-            return
-        a_long = accounts[0]
-        a_short = accounts[1]
-        exist = False
+        exclude = []
         for round_num in range(1, self.ROUNDS + 1):
-            if(exist):
-                break
+            accounts = []
+            self.random_account(accounts=accounts,exclude=exclude)
+            paradex_instances = {account: paradexClient.get_paradex_instance(account) for account in accounts}
+            paradexClient.refresh_jwt(paradex_instances)
+            # 对冲账号不满足条件，则跳出方法
+            if(len(accounts)<2):
+                return
+            a_long = accounts[0]
+            a_short = accounts[1]
             logging.warn(f"开始第 {round_num} 轮交易")
             crypto = random.choice(self.TRADING_PAIRS)
             markets = paradex_instances[a_long].api_client.fetch_markets({'market':crypto})
