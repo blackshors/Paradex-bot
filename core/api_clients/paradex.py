@@ -18,14 +18,14 @@ class ParadexClient:
         self.WAIT_ROUND_MIN = float(os.getenv("WAIT_ROUND_MIN"))            # 每轮交易最小等待时间（秒）
         self.WAIT_ROUND_MAX = float(os.getenv("WAIT_ROUND_MAX"))            # 每轮交易最大等待时间（秒）
         self.TRADING_PAIRS = os.getenv("TRADING_PAIRS").split(",")          # 交易对列表
-        self.NETWORK = os.getenv("NETWORK")                                 # 网络配置：mainnet 或 testnet
+        self.NETWORK = os.getenv("NETWORK")                                 # 网络配置：prod 或 testnet
         # 根据网络配置选择 API 基础 URL
-        if self.NETWORK == "mainnet":
+        if self.NETWORK == "prod":
             self.API_BASE_URL = "https://api.paradex.trade/v1"
         elif self.NETWORK == "testnet":
             self.API_BASE_URL = "https://api.testnet.paradex.trade/v1"
         else:
-            raise ValueError("无效的网络配置，请在 .env 中设置 NETWORK 为 'mainnet' 或 'testnet'")
+            raise ValueError("无效的网络配置，请在 .env 中设置 NETWORK 为 'prod' 或 'testnet'")
 
     # 创建 Paradex 实例的函数
     def get_paradex_instance(self,account):
@@ -54,7 +54,7 @@ class ParadexClient:
                     onboarding_result = instance.api_client.onboarding()
                     print(f"DEBUG - Onboarding结果: {onboarding_result}")  # 调试输出
                     if onboarding_result ==None:
-                        logging.info(f"账户 {account} onboarding 成功")
+                        logging.warn(f"账户 {account} onboarding 成功")
                         print(f"账户 {account} onboarding 成功")  # 控制台输出
                         
                         # 获取初始JWT令牌
@@ -62,7 +62,7 @@ class ParadexClient:
                         jwt_token = instance.account.jwt_token
                         if jwt_token:
                             instance.api_client.http_client.set_jwt_token(jwt_token)
-                            logging.info(f"账户 {account} 初始JWT设置成功")
+                            logging.warn(f"账户 {account} 初始JWT设置成功")
                         else:
                             logging.warning(f"账户 {account} 初始JWT获取失败")
                         
@@ -98,7 +98,7 @@ class ParadexClient:
                 if jwt_token:
                     # 更新HTTP客户端的JWT令牌
                     instance.api_client.http_client.set_jwt_token(jwt_token)
-                    logging.info(f"账户 {account} 的 JWT 已刷新")
+                    logging.warn(f"账户 {account} 的 JWT 已刷新")
                 else:
                     logging.error(f"账户 {account} JWT 刷新失败: 未获取到令牌")
             except Exception as e:
@@ -109,7 +109,7 @@ class ParadexClient:
                     jwt_token = instance.auth()
                     if jwt_token:
                         instance.api_client.http_client.set_jwt_token(jwt_token)
-                        logging.info(f"账户 {account} JWT 重试刷新成功")
+                        logging.warn(f"账户 {account} JWT 重试刷新成功")
                 except Exception as retry_e:
                     logging.error(f"账户 {account} JWT 重试刷新失败: {str(retry_e)}")
         

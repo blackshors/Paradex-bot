@@ -10,7 +10,7 @@ from decimal import Decimal, ROUND_DOWN
 # 配置日志，记录交易信息
 logging.basicConfig(
     filename='trade_log.log',
-    level=logging.INFO,
+    level=logging.WARN,
     format='%(asctime)s - %(message)s'
 )
 
@@ -40,7 +40,7 @@ class HedgeEngine:
         paradex_order_price_buy = self.paradex_clients.order_detail(self.accounts_buy)
         paradex_order_price_sell = self.paradex_clients.order_detail(self.accounts_sell)
         if paradex_order_price_buy + paradex_order_price_sell >= pair['max_price_deviation']:
-            logging.info(f"检测到未实现盈亏满足条件{pair['max_price_deviation']}%，直接限价平仓")
+            logging.warn(f"检测到未实现盈亏满足条件{pair['max_price_deviation']}%，直接限价平仓")
             self.paradex_clients.close_order(self.accounts_buy)
             self.paradex_clients.close_order(self.accounts_buy)
             return False
@@ -64,24 +64,24 @@ class HedgeEngine:
         un_close_sell = paradex_instances[a_short].api_client.fetch_orders({"market":crypto})['results']
         isFlag = False
         if len(un_close_by)>0:
-            logging.info(f"未平多仓订单详情：{un_close_by}")
-            logging.info(f"账户：{a_long}存在未平仓,剩余大小：{un_close_by[0]['size']}等待平仓中.....")
+            logging.warn(f"未平多仓订单详情：{un_close_by}")
+            logging.warn(f"账户：{a_long}存在未平仓,剩余大小：{un_close_by[0]['size']}等待平仓中.....")
             order_book = paradex_instances[a_long].api_client.fetch_bbo(crypto)
-            logging.info(f"当前token：{crypto}，已经行价详情：{order_book}")
+            logging.warn(f"当前token：{crypto}，已经行价详情：{order_book}")
             best_bid = Decimal(order_book["bid"])
             size = Decimal(un_close_by[0]['size']).quantize(Decimal(order_size_increment), rounding=ROUND_DOWN)
             close = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=size,limit_price=best_bid))
-            logging.info(f"账户 {a_long} 平多仓, {close}")
+            logging.warn(f"账户 {a_long} 平多仓, {close}")
             isFlag = True
         if len(un_close_sell)>0:
-            logging.info(f"未平空仓订单详情：{un_close_sell}")
-            logging.info(f"账户：{a_short}存在未平仓,剩余大小：{un_close_sell[0]['size']}等待平仓中.....")
+            logging.warn(f"未平空仓订单详情：{un_close_sell}")
+            logging.warn(f"账户：{a_short}存在未平仓,剩余大小：{un_close_sell[0]['size']}等待平仓中.....")
             order_book = paradex_instances[a_short].api_client.fetch_bbo(crypto)
-            logging.info(f"当前token：{crypto}，已经行价详情：{order_book}")
+            logging.warn(f"当前token：{crypto}，已经行价详情：{order_book}")
             best_ask = Decimal(order_book["ask"])
             size = Decimal(un_close_sell[0]['size']).quantize(Decimal(order_size_increment), rounding=ROUND_DOWN)
             close = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=size,limit_price=best_ask))
-            logging.info(f"账户 {a_short} 平空仓, {close}")
+            logging.warn(f"账户 {a_short} 平空仓, {close}")
             isFlag = True
         return isFlag
 
@@ -114,13 +114,13 @@ class HedgeEngine:
     
 
     def run(self,accounts,exclude):
-        logging.info("=======================开始查询每个账户的初始金额=======================")
+        logging.warn("=======================开始查询每个账户的初始金额=======================")
         analysis_account_total = self.analysis_account_total()
         account_total_front = 0
         for key, value in analysis_account_total.items():
-            logging.info(f"账户{key}余额：{value}USD")
+            logging.warn(f"账户{key}余额：{value}USD")
             account_total_front+=value
-        logging.info(f"合计：{account_total_front}USDC")
+        logging.warn(f"合计：{account_total_front}USDC")
         paradexClient = ParadexClient()
         paradex_instances = {account: paradexClient.get_paradex_instance(account) for account in accounts}
         paradexClient.refresh_jwt(paradex_instances)
@@ -135,7 +135,7 @@ class HedgeEngine:
         #             accounts.remove(account)
         #         initial_balances[account] = usdc_balance
         #         account_total+=usdc_balance
-        #         logging.info(f"交易账户{account}余额: {usdc_balance}")
+        #         logging.warn(f"交易账户{account}余额: {usdc_balance}")
         #     except Exception as e:
         #         logging.error(f"获取账户 {account} 余额失败: {str(e)}")
         #         raise
@@ -149,7 +149,7 @@ class HedgeEngine:
         for round_num in range(1, self.ROUNDS + 1):
             if(exist):
                 break
-            logging.info(f"开始第 {round_num} 轮交易")
+            logging.warn(f"开始第 {round_num} 轮交易")
             crypto = random.choice(self.TRADING_PAIRS)
             markets = paradex_instances[a_long].api_client.fetch_markets({'market':crypto})
             order_size_increment = markets['results'][0]['order_size_increment']
@@ -160,7 +160,7 @@ class HedgeEngine:
                     sleepNum = 0
                 time.sleep(sleepNum)
                 sleepNum = sleepNum<<1
-                logging.info(f"===================仓位未完全关闭，等待处理,下一次休眠：{sleepNum}s，===================")
+                logging.warn(f"===================仓位未完全关闭，等待处理,下一次休眠：{sleepNum}s，===================")
             order_book = paradex_instances[a_long].api_client.fetch_bbo(crypto)
             best_ask = Decimal(order_book["ask"])
             best_bid = Decimal(order_book["bid"])
@@ -168,13 +168,13 @@ class HedgeEngine:
             q_short = (Decimal(self.AMOUNT) / best_bid).quantize(Decimal(order_size_increment), rounding=ROUND_DOWN)
             #构建Order实体
             buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_long,limit_price=best_ask))
-            logging.info(f"账户 {a_long} 创建订单, {buy}")
+            logging.warn(f"账户 {a_long} 创建订单, {buy}")
             # if(self.is_not_exist_order(paradex_instances[a_long],crypto)):
             #     exist = True
             #     continue
             sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_short,limit_price=best_bid))
-            logging.info(f"账户 {a_short} 创建订单, {sell}")
-            logging.info(f"账户 {a_long} 开多仓, 账户 {a_short} 开空仓, 交易对: {crypto}")
+            logging.warn(f"账户 {a_short} 创建订单, {sell}")
+            logging.warn(f"账户 {a_long} 开多仓, 账户 {a_short} 开空仓, 交易对: {crypto}")
             wait_time = random.uniform(self.WAIT_OPEN_CLOSE_MIN, self.WAIT_OPEN_CLOSE_MAX)
             time.sleep(wait_time)
             
@@ -201,22 +201,22 @@ class HedgeEngine:
             #构建Order实体
             close_buy = paradex_instances[a_long].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Sell,size=q_long,limit_price=close_bid))
             close_sell = paradex_instances[a_short].api_client.submit_order(Order(market=crypto,order_type=OrderType.Limit,order_side=OrderSide.Buy,size=q_short,limit_price=close_ask))
-            logging.info(f"账户 {a_long} 平多仓, 账户 {a_short} 平空仓, 交易对: {crypto}")
-            logging.info(f"账户 {a_long} 平多仓, {close_buy}")
-            logging.info(f"账户 {a_short} 平空仓, {close_sell}")
+            logging.warn(f"账户 {a_long} 平多仓, 账户 {a_short} 平空仓, 交易对: {crypto}")
+            logging.warn(f"账户 {a_long} 平多仓, {close_buy}")
+            logging.warn(f"账户 {a_short} 平空仓, {close_sell}")
             round_wait = random.uniform(self.WAIT_ROUND_MIN, self.WAIT_ROUND_MAX)
             time.sleep(round_wait)
         
-            logging.info(f"=======================结束{round_num}轮后=======================")
+            logging.warn(f"=======================结束{round_num}轮后=======================")
             analysis_account_total = self.analysis_account_total()
             rear_account_total = 0
             for key, value in analysis_account_total.items():
-                logging.info(f"账户{key}余额：{value}USD")
+                logging.warn(f"账户{key}余额：{value}USD")
                 rear_account_total+=value
-            logging.info(f"高频损耗 ： {account_total_front-rear_account_total} UDSC（前合计-结束合计）")
+            logging.warn(f"高频损耗 ： {account_total_front-rear_account_total} UDSC（前合计-结束合计）")
         # for account in accounts:
         #     balances = paradex_instances[account].api_client.fetch_balances()
         #     usdc_balance = float(balances['results'][0]['size'])
         #     initial = initial_balances[account]
         #     loss = initial - usdc_balance
-        #     logging.info(f"账户 {account} 最终 USDC 余额: {usdc_balance}, 损耗: {loss}")
+        #     logging.warn(f"账户 {account} 最终 USDC 余额: {usdc_balance}, 损耗: {loss}")
